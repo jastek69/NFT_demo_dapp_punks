@@ -1,19 +1,35 @@
 import { useEffect, useState } from 'react'
-import { Container } from 'react-bootstrap'
+import { Container, Row, Col } from 'react-bootstrap'
+import Countdown from 'react-countdown'
 import { ethers } from 'ethers'
+
+// import images
+import preview from '../preview.png';
 
 // Components
 import Navigation from './Navigation';
+import Data from './Data';
+import Mint from './Mint';
 import Loading from './Loading';
 
 // ABIs: Import your contract ABIs here
-// import TOKEN_ABI from '../abis/Token.json'
+import NFT_ABI from '../abis/NFT.json'
 
 // Config: Import your network config here
-// import config from '../config.json';
+import config from '../config.json';
 
 function App() {
+
+  // Hooks to to be able to read and write
+  const [provider, setProvider] = useState(null)  // Provider function
+  const [nft, setNFT] = useState(null)
+
   const [account, setAccount] = useState(null)
+
+  const [revealTime, setRevealTime] = useState(0)
+  const [maxSupply, setMaxSupply] = useState(0)
+  const [totalSupply, setTotalSupply] = useState(0)
+  const [cost, setCost] = useState(0)
   const [balance, setBalance] = useState(0)
 
   const [isLoading, setIsLoading] = useState(true)
@@ -21,16 +37,32 @@ function App() {
   const loadBlockchainData = async () => {
     // Initiate provider
     const provider = new ethers.providers.Web3Provider(window.ethereum)
+    setProvider(provider)  // Set the provider
+
+    // initiate contract
+    const nft = new ethers.Contract(config[31337].nft.address, NFT_ABI, provider)
+    setNFT(nft)
 
     // Fetch accounts
     const accounts = await window.ethereum.request({ method: 'eth_requestAccounts' })
     const account = ethers.utils.getAddress(accounts[0])
     setAccount(account)
 
-    // Fetch account balance
-    let balance = await provider.getBalance(account)
-    balance = ethers.utils.formatUnits(balance, 18)
-    setBalance(balance)
+    // Fetch countdown
+    const allowMintingOn = await nft.allowMintingOn()
+    setRevealTime(allowMintingOn.toString() + '000') // 000 converts to ms because javascript does it in seconds
+
+    // Fetch Max Supply
+    setMaxSupply(await nft.maxSupply())
+
+    // Fetch Total Supply
+    setTotalSupply(await nft.totalSupply())
+
+    // Fetch Cost
+    setCost(await nft.cost())
+
+    // Fetch Balance of current account
+    setBalance(await nft.balanceOf(account))
 
     setIsLoading(false)
   }
@@ -44,15 +76,49 @@ function App() {
   return(
     <Container>
       <Navigation account={account} />
-
-      <h1 className='my-4 text-center'>React Hardhat Template</h1>
-
+        <h1 className='my-4 text-center'>Dapp Punks</h1>
       {isLoading ? (
         <Loading />
       ) : (
         <>
-          <p className='text-center'><strong>Your ETH Balance:</strong> {balance} ETH</p>
-          <p className='text-center'>Edit App.js to add your code here.</p>
+          <Row>
+            <Col>
+              {balance > 0 ? (
+                <div className='text-center'></div>
+              ) : (
+                <img src={preview} alt=""/>
+              )}                      
+            </Col>
+
+            <Col>
+              <div className='my-4 text-center'>
+                <Countdown date={parseInt(revealTime)} className='h2' />
+                  <img
+                  src={`https://gateway.pinata.cloud/ipfs/QmQPEMsfd1tJnqYPbnTQCjoa8vczfsV1FmqZWgRdNQ7z3g/${balance.toString()}.png`}
+                  alt='Open Punk'
+                  width="400px"
+                  height="400px"
+                  />
+              </div>
+
+              <Data
+                  maxSupply={maxSupply}
+                  totalSupply={totalSupply}
+                  cost={cost}
+                  balance={balance}                  
+                />
+
+                <Mint
+                  provider={provider}
+                  nft={nft}
+                  cost={cost}
+                  setIsLoading={setIsLoading}
+                  />
+
+            </Col>
+            
+          </Row>
+          
         </>
       )}
     </Container>
